@@ -85,8 +85,10 @@ void saveCreds( const String& s, const String& p ) {
   EEPROM.commit();
 }
 
-int mapDeg( int deg ) {
-  return ( deg * 2000 / 180 ) + 500;
+void setServoPosition( int deg ) {
+  if ( deg > 180 || deg < 0 ) return;
+
+  servo.writeMicroseconds( ( deg * 2000 / 180 ) + 500 );
 }
 
 bool validUID( String uid ) {
@@ -95,7 +97,7 @@ bool validUID( String uid ) {
     return false;
   }
 
-  String url = String(SERVER_URL) + "check?value=" + uid; // ROUTE: Check if card is valid.
+  String url = String(SERVER_URL) + "check?value=" + uid;                                   // ROUTE: Check if card is valid.
   Serial.println("Request URL: " + url);
 
   String body;
@@ -281,14 +283,14 @@ void handleCard() {
     Serial.println("No NDEF payload on tag");
   }
 
-  if ( validUID(uidstr) ) {
-    servo.writeMicroseconds(mapDeg(180));
+  if ( validUID(uidstr) ) {                                                                 // Example movement
+    setServoPosition(180);
 
     delay(500);
-    servo.writeMicroseconds(mapDeg(0));
+    setServoPosition(0);
 
     delay(500);
-    servo.writeMicroseconds(mapDeg(90));
+    setServoPosition(90);
   }
 
   delay(1000);
@@ -316,7 +318,7 @@ bool registerCard( String pesel ) {
 
   String uidstr = uidToStr(mfrc522.uid);
 
-  String url = String(SERVER_URL) + "register?uid=" + uidstr + "&pesel=" + pesel; // ROUTE: Register card.
+  String url = String(SERVER_URL) + "register?uid=" + uidstr + "&pesel=" + pesel;           // ROUTE: Register card.
   Serial.println("Request URL: " + url);
 
   String body;
@@ -395,7 +397,7 @@ void setup() {
   digitalWrite(SERVO_PIN, LOW);
 
   servo.attach(SERVO_PIN, 500, 2500);
-  servo.writeMicroseconds(mapDeg(90));
+  setServoPosition(90);
 
   if ( ssid_mem.length() == 0 ) setDevMode(true);
 
