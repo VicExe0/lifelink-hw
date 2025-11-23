@@ -21,8 +21,6 @@ ESP8266WebServer server(80);
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 NfcAdapter nfc(&mfrc522);
 
-const char* SERVER_URL = "https://example.com/"; // Server url | Update paths in commented lines below.
-
 String ssid_mem = "";
 String pass_mem = "";
 
@@ -36,7 +34,7 @@ bool button_last_state = false;
 bool ignore_button = false;
 bool dev_mode = false;
 
-int requestGet( String url, String& body ) {
+int requestGet( String& url, String& body ) {
   if ( WiFi.status() != WL_CONNECTED ) return -1;
 
   WiFiClientSecure client;
@@ -45,10 +43,25 @@ int requestGet( String url, String& body ) {
 
   if ( !http.begin(client, url) ) return -2;
   int code = http.GET();
-  String gbody = http.getString();
+  body = http.getString();
   http.end();
 
-  body = gbody;
+  return code;
+}
+
+int requestPostJson( String& url, String& response, String& payload ) {
+  if ( WiFi.status() != WL_CONNECTED ) return -1;
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+
+  if ( !http.begin(client, url) ) return -2;
+  http.addHeader("Content-Type", "application/json");
+
+  int code = http.POST(payload);
+  response = http.getString();
+  http.end();
 
   return code;
 }
@@ -97,24 +110,67 @@ bool validUID( String uid ) {
     return false;
   }
 
-  String url = String(SERVER_URL) + "check?value=" + uid;                                   // ROUTE: Check if card is valid.
-  Serial.println("Request URL: " + url);
+  String url = "https://dom.optotel.pl/api/nfc/verify";
+  String payload = "{\"uid\":\"" + uid + "\"}";
 
-  String body;
-  int code = requestGet(url, body);
-
+  String response;
+  int code = requestPostJson(url, response, payload);
 
   Serial.print("Response status code: ");
   Serial.println(code);
 
   Serial.print("Response body: ");
-  Serial.println(body);
+  Serial.println(response);
 
-  if ( code == 200 && body == "true" ) {
+  if ( code == 200 || response == "true" ) {
     return true;
   }
 
   return false;
+}
+
+bool registerCard( String pesel, String password ) {
+  if ( WiFi.status() != WL_CONNECTED ) {
+    Serial.println("Lost connection.");
+    return false;
+  }
+
+  if ( !nfc.tagPresent() ) {
+    int attempts = 0;
+
+    for ( ; attempts < 3; attempts++ ) {
+      if ( nfc.tagPresent() ) break;
+      delay(100);
+    }
+
+    if ( attempts >= 3 ) {
+      Serial.println("Card not present.");
+      return false;
+    }
+  }
+
+  String uidstr = uidToStr(mfrc522.uid);
+
+  String url = "https://dom.optotel.pl/api/nfc/register";
+  String payload = "{\"nfcTagUid\":\"" + uidstr + "\",\"pesel\":\"" + pesel +"\",\"password\":\"" + password + "\"}";
+
+  Serial.println(payload);
+
+  String response;
+  int code = requestPostJson(url, response, payload);
+
+  Serial.print("Response status code: ");
+  Serial.println(code);
+
+  Serial.print("Response body: ");
+  Serial.println(response);
+
+  if ( code != 200 ) {
+    Serial.print("Request failed");
+    return false;
+  }
+
+  return true;
 }
 
 String uidToStr( MFRC522::Uid uid ) {
@@ -157,7 +213,6 @@ String getRecordType( NdefRecord& record ) {
 void handleMessage( NdefMessage& msg ) {
   for ( int i = 0; i < msg.getRecordCount(); i++ ) {
     NdefRecord record = msg.getRecord(i);
-
 
     String type = getRecordType(record);
 
@@ -296,46 +351,6 @@ void handleCard() {
   delay(1000);
 }
 
-bool registerCard( String pesel ) {
-  if ( WiFi.status() != WL_CONNECTED ) {
-    Serial.println("Lost connection.");
-    return false;
-  }
-
-  if ( !nfc.tagPresent() ) {
-    int attempts = 0;
-
-    for ( ; attempts < 3; attempts++ ) {
-      if ( nfc.tagPresent() ) break;
-      delay(100);
-    }
-
-    if ( attempts >= 3 ) {
-      Serial.println("Card not present.");
-      return false;
-    }
-  }
-
-  String uidstr = uidToStr(mfrc522.uid);
-
-  String url = String(SERVER_URL) + "register?uid=" + uidstr + "&pesel=" + pesel;           // ROUTE: Register card.
-  Serial.println("Request URL: " + url);
-
-  String body;
-  int code = requestGet(url, body);
-
-  if ( code != 200 ) {
-    Serial.print("Request failed: ");
-    Serial.println(code);
-    return false;
-  }
-
-  Serial.println("Body:" + body);
-
-  return true;
-}
-
-
 void startDevServer() {
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAP("ESP_SETUP");
@@ -349,21 +364,22 @@ void startDevServer() {
 
   server.on("/save", []() {
     String arg_ssid = server.arg("ssid");
-    String arg_pswd = server.arg("pswd");
+    String arg_password = server.arg("password");
 
-    saveCreds(arg_ssid, arg_pswd);
+    saveCreds(arg_ssid, arg_password);
 
     WiFi.disconnect(true);
     delay(200);
 
-    WiFi.begin(arg_ssid.c_str(), arg_pswd.c_str());
+    WiFi.begin(arg_ssid.c_str(), arg_password.c_str());
     server.send(200, "text/html", "Saved");
   });
 
   server.on("/register", []() {
     String arg_pesel = server.arg("pesel");
+    String arg_password = server.arg("password");
 
-    if ( registerCard(arg_pesel) ) {
+    if ( registerCard(arg_pesel, arg_password) ) {
       server.send(200, "text/html", "Success!");
 
     } else {
@@ -380,6 +396,7 @@ void stopDevServer() {
   WiFi.softAPdisconnect(true);
   dev_server_running = false;
 }
+
 
 void setup() {
   EEPROM.begin(512);
