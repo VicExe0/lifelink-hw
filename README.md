@@ -3,7 +3,7 @@
 # Usage
 1. Power the HW-389 board via Barrel cabel 5mm 6V-24V.  (do not power ESP via USB only, USB connector is only for programming and may lead to issues with other components)
 2. ESP will try to connect to WIFI 5 times (1-10s) and if it fails to then dev mode will be activated and light on the board will light up. (Dev mode will be activated if ESP loses connection for 5 seconds by default)
-    - ESP will start a hotspot, connect to it and configure the wifi settings and card registration
+    - ESP will start a hotspot, connect to it and configure the wifi settings and card registration on IP `192.168.4.1` by default.
     + To register a card, place it on the RFID reader, input PESEL and press REGISTER CARD button below. If it fails, follow the steps on the page and try again. Reader could fail sometimes, in that case refresh the request page.
 3. To turn OFF/ON the dev mode which disables the card reader (blue light visible on the board not the HW-389 board), hold button for 3 seconds.
 
@@ -47,4 +47,5 @@
     - Erase Flash:      Only Sketch
 
 ### NOTE:
+
 If you are unable to upload to the ESP then try disconnecting cables from pins D0 and D3.
