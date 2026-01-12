@@ -26,6 +26,7 @@ String pass_mem = "";
 
 const int MAX_WIFI_DOWNTIME = 5000;   // ms
 const int BUTTON_DOWN_TRIGGER = 3000; // ms
+const int START_POS_DEG = 180;
 
 unsigned long pressStart = 0;
 unsigned long wifiDownStart = 0;
@@ -33,6 +34,7 @@ bool dev_server_running = false;
 bool button_last_state = false;
 bool ignore_button = false;
 bool dev_mode = false;
+int current_deg = START_POS_DEG;
 
 int requestGet( String& url, String& body ) {
   if ( WiFi.status() != WL_CONNECTED ) return -1;
@@ -338,14 +340,9 @@ void handleCard() {
     Serial.println("No NDEF payload on tag");
   }
 
-  if ( validUID(uidstr) ) {                                                                 // Example movement
-    setServoPosition(180);
-
-    delay(500);
-    setServoPosition(0);
-
-    delay(500);
-    setServoPosition(90);
+  if ( validUID(uidstr) ) {
+    current_deg += -45;
+    setServoPosition(current_deg);
   }
 
   delay(1000);
@@ -414,7 +411,7 @@ void setup() {
   digitalWrite(SERVO_PIN, LOW);
 
   servo.attach(SERVO_PIN, 500, 2500);
-  setServoPosition(90);
+  setServoPosition(START_POS_DEG);
 
   if ( ssid_mem.length() == 0 ) setDevMode(true);
 
@@ -442,11 +439,3 @@ void loop() {
   
   delay(100);
 }
-
-
-
-
-
-
-
-
